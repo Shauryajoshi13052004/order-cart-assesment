@@ -96,13 +96,18 @@ WSGI_APPLICATION = 'food_delivery.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
+# DATABASE_URL is the portable convention. POSTGRES_URL is automatically
+# supplied by Vercel Postgres integrations, so accept both.
+DATABASE_URL = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
 if DATABASE_URL:
     # Vercel functions are stateless/read-only: a managed Postgres database is
     # required for sessions, admin logins, and persisted orders.
     DATABASES = {'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
 elif os.environ.get('VERCEL'):
-    raise ImproperlyConfigured('DATABASE_URL must be configured for a Vercel deployment.')
+    raise ImproperlyConfigured(
+        'A managed PostgreSQL URL is required on Vercel. Set DATABASE_URL, '
+        'or connect a Vercel Postgres database which supplies POSTGRES_URL.'
+    )
 else:
     DATABASES = {
         'default': {
