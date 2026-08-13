@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Count, Sum
+from django.db.models import Q
 from .models import MenuItem, Order, OrderItem
 from .serializers import (
     MenuItemSerializer, 
@@ -31,6 +32,19 @@ class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     lookup_field = 'id'
+
+    def get_queryset(self):
+        queryset = super().get_queryset().prefetch_related('items__menu_item')
+        search = self.request.query_params.get('search', '').strip()
+        status_filter = self.request.query_params.get('status', '').strip()
+        if search:
+            query = Q(customer_name__icontains=search) | Q(customer_address__icontains=search) | Q(customer_phone__icontains=search)
+            if search.isdigit():
+                query |= Q(id=int(search))
+            queryset = queryset.filter(query)
+        if status_filter in dict(Order.STATUS_CHOICES):
+            queryset = queryset.filter(status=status_filter)
+        return queryset
 
     def create(self, request):
         serializer = CreateOrderSerializer(data=request.data)
