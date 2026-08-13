@@ -10,7 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
 from pathlib import Path
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -32,8 +35,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://order-cart-assesment-yt95-8ktqtyr9f.vercel.app",
 ]
+
+# Permit this Vercel app's production/preview subdomains without opening CORS
+# to arbitrary origins. FRONTEND_ORIGIN supports a custom frontend domain.
+CORS_ALLOWED_ORIGIN_REGEXES = [r"^https://[a-z0-9-]+\.vercel\.app$"]
+configured_frontend = os.environ.get('FRONTEND_ORIGIN')
+if configured_frontend:
+    CORS_ALLOWED_ORIGINS.append(configured_frontend.rstrip('/'))
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -87,12 +96,20 @@ WSGI_APPLICATION = 'food_delivery.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    # Vercel functions are stateless/read-only: a managed Postgres database is
+    # required for sessions, admin logins, and persisted orders.
+    DATABASES = {'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
+elif os.environ.get('VERCEL'):
+    raise ImproperlyConfigured('DATABASE_URL must be configured for a Vercel deployment.')
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
 
 
 # Password validation
