@@ -11,9 +11,10 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 import os
+import shutil
+import tempfile
 from pathlib import Path
 import dj_database_url
-from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -104,10 +105,19 @@ if DATABASE_URL:
     # required for sessions, admin logins, and persisted orders.
     DATABASES = {'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
 elif os.environ.get('VERCEL'):
-    raise ImproperlyConfigured(
-        'A managed PostgreSQL URL is required on Vercel. Set DATABASE_URL, '
-        'or connect a Vercel Postgres database which supplies POSTGRES_URL.'
-    )
+    # Vercel mounts deployed files as read-only. Use a writable copy in /tmp
+    # for demo deployments that intentionally use SQLite. It is ephemeral:
+    # data can reset on cold starts, scale-outs, and redeployments.
+    source_database = BASE_DIR / 'db.sqlite3'
+    temporary_database = Path(tempfile.gettempdir()) / 'food_delivery.sqlite3'
+    if not temporary_database.exists() and source_database.exists():
+        shutil.copy2(source_database, temporary_database)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': temporary_database,
+        }
+    }
 else:
     DATABASES = {
         'default': {
